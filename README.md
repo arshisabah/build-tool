@@ -19,6 +19,17 @@
 
 - [Why arshi](#why-arshi)
 - [Features](#features)
+- [High-Level Design (HLD)](#high-level-design-hld)
+  - [1. Introduction](#1-introduction)
+  - [2. Objectives](#2-objectives)
+  - [3. Scope](#3-scope)
+  - [4. System overview](#4-system-overview)
+  - [5. Component responsibilities](#5-component-responsibilities)
+  - [6. Data flow (end to end)](#6-data-flow-end-to-end)
+  - [7. Technology stack](#7-technology-stack)
+  - [8. Non-functional considerations](#8-non-functional-considerations)
+  - [9. Assumptions and constraints](#9-assumptions-and-constraints)
+  - [10. Future direction](#10-future-direction)
 - [Architecture](#architecture)
   - [Module map](#module-map)
   - [Module dependency graph](#module-dependency-graph)
@@ -71,6 +82,139 @@ transparent, hackable clone you can read top to bottom in an afternoon.
   dependencies copied to `target/lib/`).
 - 🌳 **`arshi dependency:tree`** — inspect what actually got resolved, including a
   `[arshi] warning: ...` line on stderr for anything that couldn't be.
+
+## High-Level Design (HLD)
+
+### 1. Introduction
+
+This section describes arshi at the design level — what it's for, what it
+does and doesn't cover, how responsibility is split across components, and
+how data moves through the system end to end. The [Architecture](#architecture)
+section below goes one level deeper into the actual classes; this section
+is the "read this first" summary.
+
+### 2. Objectives
+
+- Provide a Maven-equivalent build experience (`arshi.xml`, phased
+  lifecycle, plugin/goal model, transitive dependency resolution) that is
+  small enough to read and modify in full.
+- Keep every major concern — parsing, lifecycle sequencing, dependency
+  resolution, and the actual build work — in its own module, so each can
+  be understood, tested, and replaced independently.
+- Interoperate with the existing Maven ecosystem by reading real `.pom`
+  files from Maven Central, rather than inventing a separate package
+  registry.
+
+### 3. Scope
+
+**In scope:** project descriptor parsing, an ordered build lifecycle,
+built-in goals for cleaning/compiling/resource-copying/jarring/installing,
+`arshi run` for launching an application (including Spring Boot apps),
+transitive dependency resolution against Maven Central (including parent
+POM and BOM/`dependencyManagement` handling), and a ServiceLoader-based
+plugin extension point.
+
+**Out of scope (see [Known limitations](#known-limitations--roadmap)):**
+version ranges, dependency `<exclusions>`, multi-module reactor builds for
+*consumer* projects (arshi itself is multi-module, but a project built
+*with* arshi is currently single-module), a real test runner, and a true
+merged uber-jar.
+
+### 4. System overview
+
+```
+                        ┌─────────────────────────┐
+                        │        arshi-cli         │   entry point (picocli)
+                        └────────────┬─────────────┘
+                                     │
+              ┌──────────────────────┼──────────────────────┐
+              ▼                      ▼                      ▼
+     ┌────────────────┐   ┌───────────────────┐   ┌──────────────────┐
+     │   arshi-core     │   │   arshi-plugins    │   │  arshi-resolver   │
+     │  (lifecycle +    │◄──│  (concrete goals:  │──►│  (local/remote    │
+     │   project model) │   │   clean, compile,  │   │   repos, POM +    │
+     │                  │   │   jar, run, ...)    │   │   BOM resolution) │
+     └────────┬─────────┘   └─────────────────────┘   └─────────┬─────────┘
+              │                                                  │
+              └───────────────────┐          ┌────────────────────┘
+                                   ▼          ▼
+                             ┌──────────────────┐
+                             │     arshi-api      │   shared model + Goal SPI
+                             └──────────────────┘
+```
+
+Every component above `arshi-api` is replaceable in isolation: a new goal
+only needs `arshi-api`; a new resolution strategy only touches
+`arshi-resolver`; a new CLI surface (e.g. a GUI) could sit on top of
+`arshi-core` without touching anything else.
+
+### 5. Component responsibilities
+
+| Component | Responsibility | Does **not** do |
+|---|---|---|
+| **CLI layer** (`arshi-cli`) | Parse command-line arguments, load `arshi.xml` for the current directory, invoke the right lifecycle phase or goal. | Any actual build logic. |
+| **Lifecycle engine** (`arshi-core`) | Hold the fixed phase ordering; run every bound goal up to a target phase; discover available goals via `ServiceLoader`. | Know what a "goal" does internally. |
+| **Goal implementations** (`arshi-plugins`) | Do the actual work — delete files, invoke `javac`, copy resources, build a jar, launch a process. | Decide *when* they run (that's the lifecycle engine's job). |
+| **Resolver** (`arshi-resolver`) | Turn a declared dependency into a jar on disk: local cache check, remote fetch, parent/BOM version resolution, transitive graph, classpath assembly. | Compile or package anything. |
+| **Shared model** (`arshi-api`) | Define the vocabulary (`Phase`, `Dependency`, `ArshiProject`, `Goal`) every other component agrees on. | Contain any logic beyond simple data validation. |
+
+### 6. Data flow (end to end)
+
+1. **Input**: `arshi.xml` on disk in the current working directory.
+2. **Parse**: `ProjectLoader` (arshi-core) turns it into an in-memory `ArshiProject`.
+3. **Dispatch**: the CLI subcommand picks a target `Phase` (or, for `clean`/`run`, a single `Goal`).
+4. **Sequence**: `LifecycleRunner` walks `Phase.values()` up to the target, firing bound `Goal`s.
+5. **Resolve** (as needed by a goal): `arshi-resolver` turns `ArshiProject.dependencies()` into actual jar files — checking `~/.arshi/repository` first, falling back to Maven Central, resolving versions via parent POMs/BOMs, and flattening the result with nearest-wins conflict resolution.
+6. **Execute**: each `Goal` reads/writes files under `target/` (and, for `install`, `~/.arshi/repository`) or spawns a `java` subprocess (`run:run`).
+7. **Output**: compiled classes, a packaged jar (+ `target/lib/`), an installed artifact, or a running application process — depending on which command was invoked.
+
+### 7. Technology stack
+
+| Concern | Choice | Why |
+|---|---|---|
+| Language / runtime | Java 17+ | Records, `javax.tools.JavaCompiler`, and modern `java.net.http.HttpClient` are all used directly — no reflection tricks needed. |
+| CLI parsing | [picocli](https://picocli.info/) | Subcommand support, `--help`/`--version` generation, minimal boilerplate. |
+| POM/`arshi.xml` parsing | Jackson (`jackson-dataformat-xml`) | Maps XML straight onto Java records; `FAIL_ON_UNKNOWN_PROPERTIES` disabled specifically for parsing real-world Maven POMs. |
+| Plugin discovery | `java.util.ServiceLoader` | JDK-native, no extra dependency, works cleanly once jars are shaded together. |
+| Packaging | Maven Shade plugin | Merges all modules + dependencies into one runnable `arshi-cli.jar`, including merging each module's `META-INF/services` entries. |
+| Remote repository protocol | Plain HTTPS against Maven Central's static layout | No custom registry to run or maintain. |
+
+### 8. Non-functional considerations
+
+- **Resumability**: `RemoteResolver` treats an already-present local file as
+  resolved and skips re-downloading, so repeated builds are fast once the
+  local cache is warm.
+- **Partial-failure tolerance**: a single unresolvable dependency branch
+  (bad BOM, transient network issue) logs a warning to stderr and is
+  skipped, rather than aborting the whole dependency graph resolution.
+- **Extensibility**: adding a goal requires zero changes to `arshi-core` —
+  only a new `Goal` implementation plus a `META-INF/services` entry.
+- **Portability**: `ClasspathBuilder` and `RunGoal` use
+  `java.io.File.pathSeparator` and `System.getProperty("java.home")` rather
+  than hardcoded paths, so the same code path works on Windows, macOS, and
+  Linux.
+
+### 9. Assumptions and constraints
+
+- A dependency's remote `.pom` is reachable over plain HTTPS at Maven
+  Central's conventional URL layout; private/internal repositories would
+  need `RemoteResolver`'s base URL reconfigured.
+- Source layout is fixed at `src/main/java` / `src/main/resources` — not
+  yet read from `arshi.xml`.
+- Only one artifact is built per `arshi.xml` — there's no multi-module
+  aggregation for projects built *with* arshi (arshi's own build is
+  multi-module, but that's a property of arshi's own repository, not a
+  capability it exposes to consumers yet).
+
+### 10. Future direction
+
+See [Known limitations / roadmap](#known-limitations--roadmap) for the
+concrete backlog (version ranges, exclusions, a real test runner, a true
+uber-jar, configurable source layout). At the design level, none of these
+require changing the module boundaries above — they're all extensions
+within `arshi-resolver` or `arshi-plugins`.
+
+---
 
 ## Architecture
 
