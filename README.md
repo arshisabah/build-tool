@@ -29,6 +29,7 @@
   - [Prerequisites](#prerequisites)
   - [Build arshi from source](#build-arshi-from-source)
   - [Install globally](#install-globally)
+  - [Adding `arshi` to PATH on another machine](#adding-arshi-to-path-on-another-machine)
 - [Usage](#usage)
   - [Plain Java project](#plain-java-project)
   - [Spring Boot project](#spring-boot-project)
@@ -355,6 +356,87 @@ arshi --help
 > mvn clean install -rf :<module-that-changed>
 > cp arshi-cli/target/arshi-cli.jar ~/.arshi/bin/arshi-cli.jar
 > ```
+
+### Adding `arshi` to PATH on another machine
+
+If you've already copied `arshi-cli.jar` and the wrapper script into
+`~/.arshi/bin` (or `%USERPROFILE%\.arshi\bin` on Windows) on a new machine
+but `arshi` isn't recognized as a command, add that folder to PATH using
+whichever method matches your shell.
+
+<details>
+<summary><strong>Windows — GUI method</strong></summary>
+
+1. Press `Win`, type `env`, open **"Edit environment variables for your account"**.
+2. Under **User variables**, select `Path`, click **Edit**.
+3. Click **New**, enter `%USERPROFILE%\.arshi\bin`.
+4. Click OK on every dialog, then close and reopen your terminal.
+</details>
+
+<details>
+<summary><strong>Windows — PowerShell (run once)</strong></summary>
+
+```powershell
+[Environment]::SetEnvironmentVariable(
+    "Path",
+    [Environment]::GetEnvironmentVariable("Path", "User") + ";$HOME\.arshi\bin",
+    "User"
+)
+```
+</details>
+
+<details>
+<summary><strong>Windows — Command Prompt (run once)</strong></summary>
+
+```cmd
+setx PATH "%PATH%;%USERPROFILE%\.arshi\bin"
+```
+</details>
+
+<details>
+<summary><strong>macOS / Linux — bash</strong></summary>
+
+```bash
+echo 'export PATH="$HOME/.arshi/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+</details>
+
+<details>
+<summary><strong>macOS — zsh (default on newer macOS)</strong></summary>
+
+```bash
+echo 'export PATH="$HOME/.arshi/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+</details>
+
+<details>
+<summary><strong>Git Bash on Windows</strong></summary>
+
+Git Bash reads `~/.bashrc` too, so the same command as macOS/Linux bash
+works — `$HOME` resolves to your Windows user profile:
+
+```bash
+echo 'export PATH="$HOME/.arshi/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+You only need this **or** the PowerShell method above, not both — they
+both add the same folder to the same underlying Windows PATH.
+</details>
+
+Verify in a **new** terminal window (PATH changes never apply to a
+terminal that was already open):
+
+```bash
+arshi --help
+```
+
+> **Order matters:** the jar and wrapper script must already exist at
+> `~/.arshi/bin` (or `%USERPROFILE%\.arshi\bin`) *before* you add that
+> folder to PATH — copy `arshi-cli.jar` and the wrapper (`arshi` or
+> `arshi.bat`) there first, then set PATH, then open a fresh terminal.
 
 ---
 
