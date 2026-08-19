@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.arshi</groupId>
+        <artifactId>arshi-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <!-- arshi-plugins: built-in goal implementations (clean, compiler, resources, jar, install). -->
+    <artifactId>arshi-plugins</artifactId>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.arshi</groupId>
+            <artifactId>arshi-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.arshi</groupId>
+            <artifactId>arshi-resolver</artifactId>
+        </dependency>
+    </dependencies>
+</project>

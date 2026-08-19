@@ -1,0 +1,7 @@
+com.arshi.plugins.CleanGoal
+com.arshi.plugins.ResourcesGoal
+com.arshi.plugins.CompilerGoal
+com.arshi.plugins.JarGoal
+com.arshi.plugins.InstallGoal
+com.arshi.plugins.SurefireGoal
+com.arshi.plugins.RunGoal

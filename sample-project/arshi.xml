@@ -1,0 +1,15 @@
+<project>
+    <groupId>com.example</groupId>
+    <artifactId>hello-arshi</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>33.0.0-jre</version>
+            <scope>compile</scope>
+        </dependency>
+    </dependencies>
+</project>

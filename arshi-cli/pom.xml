@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.arshi</groupId>
+        <artifactId>arshi-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <!-- arshi-cli: the "arshi" executable entry point. -->
+    <artifactId>arshi-cli</artifactId>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.arshi</groupId>
+            <artifactId>arshi-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.arshi</groupId>
+            <artifactId>arshi-plugins</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.arshi</groupId>
+            <artifactId>arshi-resolver</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>arshi-cli</finalName>
+        <plugins>
+            <!-- Shades all modules + deps into one runnable jar: arshi-cli.jar -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals><goal>shade</goal></goals>
+                        <configuration>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>com.arshi.cli.ArshiCli</mainClass>
+                                </transformer>
+                                <!-- merges META-INF/services/* from all modules so ServiceLoader still finds every Goal -->
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                            </transformers>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>
