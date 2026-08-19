@@ -130,9 +130,9 @@ merged uber-jar.
               ┌──────────────────────┼──────────────────────┐
               ▼                      ▼                      ▼
      ┌────────────────┐   ┌───────────────────┐   ┌──────────────────┐
-     │   arshi-core     │   │   arshi-plugins    │   │  arshi-resolver   │
-     │  (lifecycle +    │◄──│  (concrete goals:  │──►│  (local/remote    │
-     │   project model) │   │   clean, compile,  │   │   repos, POM +    │
+     │   arshi-core     │   │   arshi-plugins     │   │  arshi-resolver   │
+     │  (lifecycle +    │◄──│  (concrete goals:   │──►│  (local/remote    │
+     │   project model) │   │   clean, compile,   │   │   repos, POM +    │
      │                  │   │   jar, run, ...)    │   │   BOM resolution) │
      └────────┬─────────┘   └─────────────────────┘   └─────────┬─────────┘
               │                                                  │
